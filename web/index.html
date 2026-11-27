@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Máquina expendedora · on-chain</title>
+<style>
+  :root {
+    --bg: #05080c;
+    --panel: #0d141c;
+    --panel-2: #101a24;
+    --line: #1c2836;
+    --line-soft: #16202b;
+    --text: #e9f0f7;
+    --muted: #8ea2b6;
+    --mint: #3ce2a4;
+    --mint-dim: #1f7f5d;
+    --amber: #ffb454;
+    --red: #ff6b6b;
+    --blue: #6ea8ff;
+    --radius: 20px;
+    --mono: "Cascadia Code", "SF Mono", Consolas, monospace;
+    --num: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  [hidden] { display: none !important; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 600px at 15% -10%, rgba(60, 226, 164, .10), transparent 60%),
+      radial-gradient(700px 500px at 95% 0%, rgba(110, 168, 255, .08), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+  h1, h2, h3, p { margin: 0; }
+
+  .app {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 26px 22px 40px;
+    display: grid;
+    gap: 20px;
+  }
+
+  /* ---------- barra superior ---------- */
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+
+  .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--mint);
+    box-shadow: 0 0 0 5px rgba(60, 226, 164, .12), 0 0 22px rgba(60, 226, 164, .7);
+    animation: breathe 3.2s ease-in-out infinite;
+  }
+
+  @keyframes breathe { 50% { opacity: .55; } }
+
+  .brand h1 {
+    font-size: 20px;
+    letter-spacing: -.01em;
+    font-weight: 650;
+    display: flex; align-items: center; gap: 9px;
+  }
+
+  .tag {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--mint);
+    border: 1px solid rgba(60, 226, 164, .35);
+    background: rgba(60, 226, 164, .08);
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-weight: 700;
+  }
+
+  .brand p { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+
+  .bar-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .02);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  .chip.small { padding: 4px 9px; font-size: 11px; }
+  .chip.live { color: var(--mint); border-color: rgba(60, 226, 164, .4); }
+  .chip.warn { color: var(--amber); border-color: rgba(255, 180, 84, .4); }
+
+  .btn {
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    padding: 10px 16px;
+    font-size: 13.5px;
+    font-weight: 560;
+    transition: transform .15s ease, border-color .15s ease, background .15s ease;
+  }
+
+  .btn:hover:not(:disabled) { transform: translateY(-1px); border-color: #2a3b4e; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.ghost { background: transparent; }
+  .btn.icon { padding: 9px 12px; font-size: 15px; }
+  .btn.primary {
+    background: linear-gradient(180deg, #46f0b0, #2bc98d);
+    color: #04261b;
+    border: none;
+    font-weight: 750;
+    font-size: 15.5px;
+    padding: 15px 18px;
+    box-shadow: 0 14px 34px -18px rgba(60, 226, 164, .95);
+  }
+  .btn.primary:hover:not(:disabled) { transform: translateY(-1px); }
+  .btn.tiny { padding: 6px 10px; font-size: 11.5px; border-radius: 9px; }
+
+  /* ---------- layout ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  /* ---------- gabinete ---------- */
+  .cabinet {
+    position: relative;
+    border-radius: 26px;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, #111a24 0%, #0a1017 55%, #080d12 100%);
+    box-shadow: 0 40px 80px -60px #000, inset 0 1px 0 rgba(255, 255, 255, .05);
+    padding: 14px;
+    overflow: hidden;
+  }
+
+  .led {
+    height: 3px;
+    border-radius: 999px;
+    margin: 2px 6px 14px;
+    background: linear-gradient(90deg, transparent, var(--mint), #6ea8ff, transparent);
+    box-shadow: 0 0 22px rgba(60, 226, 164, .55);
+    opacity: .85;
+  }
+
+  .window {
+    border-radius: var(--radius);
+    border: 1px solid var(--line-soft);
+    background:
+      linear-gradient(165deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 42%),
+      #070c11;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .window::after {
+    content: "";
+    position: absolute;
+    inset: -40% -10% auto -10%;
+    height: 70%;
+    background: linear-gradient(115deg, rgba(255, 255, 255, .07), transparent 55%);
+    transform: rotate(-8deg);
+    pointer-events: none;
+  }
+
+  .window-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .shelf {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 11px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .product {
+    position: relative;
+    text-align: left;
+    border-radius: 15px;
+    border: 1px solid var(--line-soft);
+    background: linear-gradient(180deg, #101a24, #0b1219);
+    padding: 13px 13px 12px;
+    display: grid;
+    gap: 8px;
+    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+    overflow: hidden;
+  }
+
+  .product:hover:not(:disabled) { transform: translateY(-2px); border-color: #2b3d50; }
+
+  .product[aria-pressed="true"] {
+    border-color: var(--mint);
+    box-shadow: 0 0 0 1px var(--mint), 0 18px 40px -26px var(--mint);
+    background: linear-gradient(180deg, #12241f, #0c151a);
+  }
+
+  .product:disabled { cursor: not-allowed; }
+
+  .product .emoji { font-size: 26px; line-height: 1; filter: saturate(1.05); }
+  .product .pname { font-size: 13px; font-weight: 580; line-height: 1.25; }
+  .product .pmeta { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+  .product .price { font-family: var(--num); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--mint); font-weight: 650; }
+  .product .stock { font-size: 10.5px; color: var(--muted); font-family: var(--num); font-variant-numeric: tabular-nums; }
+
+  .bar-stock { height: 3px; border-radius: 999px; background: #1a2531; overflow: hidden; }
+  .bar-stock i { display: block; height: 100%; background: var(--mint); border-radius: 999px; transition: width .3s ease; }
+  .bar-stock.low i { background: var(--amber); }
+  .bar-stock.empty i { background: var(--red); }
+
+  .product.sold-out { opacity: .5; }
+  .product.sold-out .emoji { filter: grayscale(1); }
+
+  .sold-flag {
+    position: absolute;
+    top: 31px;
+    left: 45%;
+    transform: rotate(-14deg);
+    font-size: 9px;
+    letter-spacing: .12em;
+    font-weight: 800;
+    color: var(--red);
+    border: 1px solid rgba(255, 107, 107, .5);
+    border-radius: 4px;
+    padding: 2px 5px;
+    background: rgba(255, 107, 107, .08);
+  }
+
+  .tray {
+    margin-top: 15px;
+    border-radius: 14px;
+    border: 1px dashed #22303f;
+    background: repeating-linear-gradient(135deg, #0a1017 0 10px, #0c131a 10px 20px);
+    min-height: 76px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tray-label { color: #4d5f72; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+
+  .drop {
+    position: absolute;
+    font-size: 26px;
+    animation: dropIn .85s cubic-bezier(.2, 1.5, .3, 1) forwards;
+  }
+
+  @keyframes dropIn {
+    0% { transform: translateY(-90px) scale(.7) rotate(-12deg); opacity: 0; }
+    55% { opacity: 1; }
+    100% { transform: translateY(0) scale(1) rotate(0); opacity: 1; }
+  }
+
+  /* ---------- panel de compra ---------- */
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(16, 26, 36, .9), rgba(9, 15, 21, .95));
+    padding: 22px;
+    display: grid;
+    gap: 16px;
+    position: sticky;
+    top: 22px;
+  }
+
+  .panel-head { display: flex; align-items: center; justify-content: space-between; }
+  .panel-head h2 { font-size: 14px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+
+  .picked {
+    display: flex; align-items: center; gap: 14px;
+    border: 1px solid var(--line-soft);
+    background: #0a1118;
+    border-radius: 16px;
+    padding: 14px;
+    min-height: 84px;
+  }
+
+  .picked-emoji {
+    width: 54px; height: 54px;
+    display: grid; place-items: center;
+    font-size: 26px;
+    border-radius: 14px;
+    background: #101c26;
+    border: 1px solid var(--line-soft);
+    flex: none;
+  }
+
+  .picked-info { display: grid; gap: 3px; min-width: 0; }
+  .picked-info strong { font-size: 15px; line-height: 1.25; }
+  .picked-info span { color: var(--muted); font-size: 12.5px; font-family: var(--num); font-variant-numeric: tabular-nums; }
+
+  .qty-row, .total-row {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13.5px; color: var(--muted);
+  }
+
+  .stepper {
+    display: flex; align-items: center; gap: 2px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #0a1118;
+    padding: 3px;
+  }
+
+  .stepper button {
+    width: 32px; height: 30px;
+    border: none; background: transparent;
+    font-size: 17px; color: var(--text);
+    border-radius: 9px;
+  }
+
+  .stepper button:hover:not(:disabled) { background: #16212c; }
+  .stepper button:disabled { opacity: .3; cursor: not-allowed; }
+
+  .stepper output {
+    min-width: 34px; text-align: center;
+    font-family: var(--num); font-variant-numeric: tabular-nums; font-size: 15px; color: var(--text);
+  }
+
+  .total-row { border-top: 1px solid var(--line-soft); padding-top: 14px; }
+  .total-row strong { font-size: 26px; color: var(--text); font-family: var(--num); font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: -.02em; }
+  .total-row strong small { font-size: 12px; color: var(--muted); margin-left: 5px; letter-spacing: .04em; }
+
+  .hint { color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+
+  .wallet {
+    display: flex; align-items: center; gap: 10px;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 14px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .wallet strong { margin-left: auto; color: var(--text); font-family: var(--num); font-variant-numeric: tabular-nums; font-size: 13px; }
+
+  .link {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--mint);
+    border-radius: 8px;
+    font-size: 11px;
+    padding: 4px 8px;
+    font-family: var(--mono);
+  }
+
+  .link:hover { background: rgba(60, 226, 164, .08); }
+
+  /* ---------- libro ---------- */
+  .ledger {
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: rgba(13, 20, 28, .7);
+    padding: 18px 20px;
+  }
+
+  .ledger-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .ledger-head h3 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+  .ledger-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+
+  .entry {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 6px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  .entry + .entry { border-top: 1px solid #131c25; }
+  .entry:hover { background: rgba(255, 255, 255, .015); }
+  .entry .e-emoji { font-size: 15px; text-align: center; }
+  .entry .e-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry .e-name small { color: var(--muted); font-size: 11px; display: block; font-family: var(--mono); margin-top: 1px; }
+  .entry .e-amount { font-family: var(--num); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+
+  .state {
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 8px; font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .state.pending { color: var(--amber); background: rgba(255, 180, 84, .1); }
+  .state.dispensed { color: var(--mint); background: rgba(60, 226, 164, .1); }
+  .state.refunded { color: var(--blue); background: rgba(110, 168, 255, .1); }
+
+  .empty { color: var(--muted); font-size: 12.5px; padding: 10px 6px; }
+
+  /* ---------- cajón operador ---------- */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(3, 6, 9, .65);
+    backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none; transition: opacity .22s ease;
+    z-index: 40;
+  }
+
+  .scrim.open { opacity: 1; pointer-events: auto; }
+
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(400px, 100vw);
+    background: #0a1118;
+    border-left: 1px solid var(--line);
+    transform: translateX(101%);
+    transition: transform .28s cubic-bezier(.3, .8, .2, 1);
+    z-index: 50;
+    overflow-y: auto;
+    padding: 22px;
+    display: grid;
+    gap: 18px;
+    align-content: start;
+  }
+
+  .drawer.open { transform: translateX(0); }
+
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; }
+  .drawer-head h2 { font-size: 16px; }
+  .drawer-head button { border: none; background: transparent; font-size: 20px; color: var(--muted); }
+
+  .group { border: 1px solid var(--line-soft); border-radius: 14px; padding: 14px; display: grid; gap: 11px; }
+  .group h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .group .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+  .group .row span { color: var(--muted); }
+  .group .row b { font-family: var(--mono); font-weight: 500; font-size: 12px; text-align: right; overflow: hidden; text-overflow: ellipsis; }
+
+  .group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+  .btn-row { display: flex; gap: 7px; flex-wrap: wrap; }
+  .input-row { display: flex; gap: 7px; align-items: center; }
+  .input-row input { flex: 1; min-width: 0; }
+
+  .cat-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 10px;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-top: 1px solid #131c25;
+    padding: 9px 2px;
+    text-align: left;
+    font-size: 12.5px;
+  }
+
+  .cat-row:first-child { border-top: none; }
+  .cat-row:hover { background: rgba(255, 255, 255, .02); }
+
+  .cat-row .cat-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-row .cat-name small { display: block; color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .cat-row .cat-state { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--mint); }
+  .cat-row .cat-state.off { color: var(--muted); }
+  .cat-row .chev { color: var(--muted); font-size: 14px; }
+
+  .editor { display: grid; gap: 10px; }
+  .editor > .link { justify-self: start; }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .switch input { width: 15px; height: 15px; accent-color: var(--mint); }
+
+  .pending-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px;
+    align-items: center; font-size: 12px;
+    padding: 7px 0;
+    border-top: 1px solid #131c25;
+  }
+
+  .pending-row:first-of-type { border-top: none; }
+  .pending-row small { color: var(--muted); font-family: var(--mono); display: block; font-size: 10.5px; }
+
+  .field { display: grid; gap: 5px; }
+  .field label { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .field input {
+    background: #080e14; border: 1px solid var(--line); border-radius: 9px;
+    color: var(--text); font-family: var(--mono); font-size: 11.5px; padding: 9px 10px;
+  }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 20px);
+    background: #10202a; border: 1px solid var(--line);
+    border-radius: 12px; padding: 11px 16px; font-size: 13px;
+    opacity: 0; pointer-events: none; transition: all .22s ease; z-index: 60;
+    max-width: min(520px, 90vw);
+    box-shadow: 0 20px 50px -30px #000;
+  }
+
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.error { border-color: rgba(255, 107, 107, .45); color: #ffd7d7; }
+  .toast.ok { border-color: rgba(60, 226, 164, .45); color: #c8ffe8; }
+
+  @media (max-width: 940px) {
+    .layout { grid-template-columns: 1fr; }
+    .panel { position: static; }
+    .app { padding: 18px 14px 32px; }
+    .entry { grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 9px; }
+    .entry .e-name small { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <span class="dot" aria-hidden="true"></span>
+      <div>
+        <h1>Máquina 01 <span class="tag">on-chain</span></h1>
+        <p id="subtitle">Modo demo · pagos simulados en memoria</p>
+      </div>
+    </div>
+    <div class="bar-actions">
+      <span class="chip" id="netChip">demo-chain</span>
+      <button class="btn ghost" id="walletBtn">Conectar wallet</button>
+      <button class="btn ghost icon" id="adminBtn" title="Modo operador" aria-label="Modo operador">⚙</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="cabinet" aria-label="Vitrina de productos">
+      <div class="led" aria-hidden="true"></div>
+      <div class="window">
+        <div class="window-head">
+          <span id="shelfTitle">Vitrina</span>
+          <span class="chip small warn" id="pauseChip" hidden>Máquina en pausa</span>
+        </div>
+        <div class="shelf" id="shelf"></div>
+        <div class="tray" id="tray">
+          <span class="tray-label">Bandeja de entrega</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="panel-head">
+        <h2>Tu pedido</h2>
+        <span class="chip small" id="modeChip">demo</span>
+      </div>
+
+      <div class="picked">
+        <div class="picked-emoji" id="pickedEmoji">🛒</div>
+        <div class="picked-info">
+          <strong id="pickedName">Elige un producto</strong>
+          <span id="pickedPrice">—</span>
+        </div>
+      </div>
+
+      <div class="qty-row">
+        <span>Cantidad</span>
+        <div class="stepper">
+          <button id="minus" aria-label="Quitar una unidad">−</button>
+          <output id="qtyOut">1</output>
+          <button id="plus" aria-label="Añadir una unidad">+</button>
+        </div>
+      </div>
+
+      <div class="total-row">
+        <span>Total</span>
+        <strong id="totalOut">0.0000<small>ETH</small></strong>
+      </div>
+
+      <button class="btn primary" id="payBtn" disabled>Elige un producto</button>
+
+      <p class="hint">
+        El pago queda retenido en el contrato (escrow) hasta que la máquina confirma la entrega.
+        Si no dispensa dentro de la ventana, puedes reclamar tu reembolso completo.
+      </p>
+
+      <div class="wallet">
+        <span id="walletLabel">Saldo demo</span>
+        <strong id="walletOut">—</strong>
+        <button class="link" id="topUpBtn">+0.05</button>
+      </div>
+    </aside>
+  </main>
+
+  <section class="ledger" aria-label="Libro de ventas">
+    <div class="ledger-head">
+      <h3>Libro de ventas</h3>
+      <span class="chip small" id="ledgerChip">últimas 6</span>
+    </div>
+    <ul class="ledger-list" id="ledgerList"></ul>
+  </section>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<aside class="drawer" id="drawer" aria-label="Panel de administración" inert>
+  <div class="drawer-head">
+    <h2>Administración</h2>
+    <button id="closeDrawer" aria-label="Cerrar panel">✕</button>
+  </div>
+
+  <div class="group">
+    <div class="group-head">
+      <h3>Estado</h3>
+      <span class="chip small" id="admMode">ETH</span>
+    </div>
+    <div class="row"><span>Red</span><b id="admNet">demo</b></div>
+    <div class="row"><span>Dueño</span><b id="admOwner">—</b></div>
+    <div class="row"><span>Dispensador</span><b id="admDispenser">—</b></div>
+    <div class="row"><span>Caja retirable</span><b id="admRevenue">0</b></div>
+    <div class="row"><span>Ventana de entrega</span><b id="admWindow">5 min</b></div>
+    <div class="row"><span>Máximo por compra</span><b id="admMaxQty">10</b></div>
+    <div class="row"><span>Ventas</span><b id="admPaused">activas</b></div>
+    <div class="btn-row">
+      <button class="btn tiny" id="pauseBtn">Pausar ventas</button>
+      <button class="btn tiny" id="withdrawBtn">Retirar caja</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Órdenes pendientes</h3>
+    <div id="admPending"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-head">
+      <h3>Catálogo</h3>
+      <button class="btn tiny" id="newProductBtn">+ Producto</button>
+    </div>
+    <div id="admCatalog"></div>
+  </div>
+
+  <div class="group">
+    <h3>Ajustes de la máquina</h3>
+    <div class="field">
+      <label for="cfgWindow">Ventana de entrega (minutos)</label>
+      <div class="input-row">
+        <input id="cfgWindow" type="number" min="1" max="10080" step="1" />
+        <button class="btn tiny" id="saveWindow">Guardar</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="cfgMaxQty">Máximo de unidades por compra</label>
+      <div class="input-row">
+        <input id="cfgMaxQty" type="number" min="1" max="50" step="1" />
+        <button class="btn tiny" id="saveMaxQty">Guardar</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="cfgWithdrawTo">Retirar la caja a</label>
+      <input id="cfgWithdrawTo" placeholder="0x… (vacío = tu wallet)" spellcheck="false" />
+    </div>
+    <div class="field">
+      <label for="cfgDispenser">Wallet del controlador (dispensador)</label>
+      <div class="input-row">
+        <input id="cfgDispenser" placeholder="0x…" spellcheck="false" />
+        <button class="btn tiny" id="saveDispenser">Cambiar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Propiedad</h3>
+    <div class="field">
+      <label for="cfgNewOwner">Transferir la máquina a</label>
+      <div class="input-row">
+        <input id="cfgNewOwner" placeholder="0x…" spellcheck="false" />
+        <button class="btn tiny" id="transferOwner">Iniciar</button>
+      </div>
+    </div>
+    <p class="hint" id="admPendingOwner">Sin transferencias en curso.</p>
+    <button class="btn tiny" id="acceptOwner" hidden>Aceptar propiedad</button>
+  </div>
+
+  <div class="group">
+    <h3>Conexión a la cadena</h3>
+    <div class="field">
+      <label for="cfgMachine">Contrato VendingMachine</label>
+      <input id="cfgMachine" placeholder="0x…" spellcheck="false" />
+    </div>
+    <p class="hint">El contrato indica solo si cobra en ETH o en token ERC20.</p>
+    <div class="btn-row">
+      <button class="btn tiny" id="saveCfg">Guardar dirección</button>
+      <button class="btn tiny" id="connectBtn">Conectar</button>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const DEMO_WINDOW = 300;
+  const DEMO_SEED = [
+    { name: "Agua mineral 600 ml", price: "0.0012", stock: 9, emoji: "💧" },
+    { name: "Cola 350 ml", price: "0.0015", stock: 6, emoji: "🥤" },
+    { name: "Jugo de naranja", price: "0.0018", stock: 4, emoji: "🧃" },
+    { name: "Papas fritas", price: "0.0011", stock: 7, emoji: "🍟" },
+    { name: "Chocolate con leche", price: "0.0014", stock: 5, emoji: "🍫" },
+    { name: "Café listo", price: "0.0020", stock: 3, emoji: "☕" },
+    { name: "Barra de granola", price: "0.0009", stock: 8, emoji: "🥜" },
+    { name: "Galletas", price: "0.0010", stock: 6, emoji: "🍪" },
+  ];
+
+  const MACHINE_ABI = [
+    "function buy(uint16 productId, uint32 quantity) payable returns (uint256)",
+    "function confirmDispense(uint256 orderId)",
+    "function cancelOrder(uint256 orderId)",
+    "function withdraw(address to)",
+    "function addProduct(string name, uint96 price, uint32 stock) returns (uint16)",
+    "function setStock(uint16 productId, uint32 stock)",
+    "function setProductName(uint16 productId, string name)",
+    "function configureProduct(uint16 productId, uint96 price, bool active)",
+    "function setMaxQuantity(uint32 value)",
+    "function setDispenseWindow(uint64 window)",
+    "function setDispenser(address dispenser)",
+    "function setPaused(bool paused)",
+    "function transferOwnership(address newOwner)",
+    "function acceptOwnership()",
+    "function pendingOwner() view returns (address)",
+    "function maxQuantity() view returns (uint32)",
+    "function dispenseWindow() view returns (uint64)",
+    "function catalog() view returns (tuple(string name, uint96 price, uint32 stock, bool active)[])",
+    "function orders(uint256) view returns (address buyer, uint16 productId, uint32 quantity, uint8 state, uint96 amount, uint64 deadline)",
+    "function orderCount() view returns (uint256)",
+    "function withdrawable(address) view returns (uint256)",
+    "function owner() view returns (address)",
+    "function dispenser() view returns (address)",
+    "function paused() view returns (bool)",
+    "function productCount() view returns (uint16)",
+    "function token() view returns (address)",
+    "event OrderCreated(uint256 indexed orderId, address indexed buyer, uint16 indexed productId, uint32 quantity, uint96 amount, uint64 deadline)",
+  ];
+
+  const TOKEN_ABI = [
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function balanceOf(address) view returns (uint256)",
+    "function allowance(address, address) view returns (uint256)",
+    "function approve(address, uint256) returns (bool)",
+    "function mint(address, uint256)",
+  ];
+
+  const el = (id) => document.getElementById(id);
+
+  const state = {
+    mode: "demo",
+    native: true,
+    symbol: "ETH",
+    decimals: 18,
+    products: [],
+    selectedId: null,
+    qty: 1,
+    paused: false,
+    windowSeconds: 300,
+    maxQuantity: 10,
+    ownerAddress: null,
+    dispenserAddress: null,
+    pendingOwnerAddress: null,
+    adminEditingId: null,
+    adminCreating: false,
+    wallet: { address: null, balance: 0n },
+    revenue: 0n,
+    orders: [],
+    role: "guest",
+    busy: false,
+    chain: null,
+    token: null,
+    tokenAddress: null,
+    machine: null,
+    chainLabel: "demo-chain",
+    config: { machine: "" },
+  };
+
+  let demoBalance = 0n;
+  let demoOrderId = 0;
+  let demoStockBaseline = new Map();
+  let toastTimer = null;
+
+  const money = (amount) => `${formatUnits(amount)} ${state.symbol}`;
+
+  function formatUnits(value, decimals = state.decimals) {
+    const base = 10n ** BigInt(decimals);
+    const whole = value / base;
+    const fraction = (value % base).toString().padStart(decimals, "0").replace(/0+$/, "");
+    return fraction ? `${whole}.${fraction}` : `${whole}`;
+  }
+
+  function parseUnits(value, decimals = state.decimals) {
+    const [whole = "0", fraction = ""] = String(value).trim().replace(",", ".").split(".");
+    const padded = (fraction + "0".repeat(decimals)).slice(0, decimals);
+    return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(padded || "0");
+  }
+
+  function shortAddress(value) {
+    return value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "—";
+  }
+
+  function esc(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[char]);
+  }
+
+  function fakeHash() {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    return "0x" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function iconFor(name) {
+    const key = name.toLowerCase();
+    if (/(agua|water|hidrat)/.test(key)) return "💧";
+    if (/(cola|refresco|soda|energ)/.test(key)) return "🥤";
+    if (/(jugo|zumo|nectar)/.test(key)) return "🧃";
+    if (/(caf|té|te caliente|espresso)/.test(key)) return "☕";
+    if (/(papas|snack|nachos|chips)/.test(key)) return "🍟";
+    if (/(chocolate|bombón)/.test(key)) return "🍫";
+    if (/(galleta|cookie|wafer)/.test(key)) return "🍪";
+    if (/(granola|barra|fruto)/.test(key)) return "🥜";
+    if (/(cerveza|beer|vino)/.test(key)) return "🍺";
+    if (/(leche|yogur)/.test(key)) return "🥛";
+    return "🥫";
+  }
+
+  function toast(message, kind = "") {
+    const node = el("toast");
+    node.textContent = message;
+    node.className = `toast show ${kind}`.trim();
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { node.className = "toast"; }, 3600);
+  }
+
+  function selectedProduct() {
+    return state.products.find((product) => product.id === state.selectedId) ?? null;
+  }
+
+  function total() {
+    const product = selectedProduct();
+    return product ? product.price * BigInt(state.qty) : 0n;
+  }
+
+  /* ---------------- demo ---------------- */
+
+  function seedDemo() {
+    demoBalance = parseUnits("0.25");
+    demoOrderId = 0;
+    state.mode = "demo";
+    state.native = true;
+    state.decimals = 18;
+    state.symbol = "ETH";
+    state.paused = false;
+    state.revenue = 0n;
+    state.orders = [];
+    state.windowSeconds = 300;
+    state.maxQuantity = 10;
+    state.ownerAddress = null;
+    state.dispenserAddress = null;
+    state.pendingOwnerAddress = null;
+    state.adminEditingId = null;
+    state.adminCreating = false;
+    state.products = DEMO_SEED.map((item, index) => ({
+      id: index + 1,
+      name: item.name,
+      price: parseUnits(item.price),
+      stock: item.stock,
+      active: true,
+      emoji: item.emoji,
+    }));
+    demoStockBaseline = new Map(state.products.map((product) => [product.id, product.stock]));
+    state.wallet = { address: null, balance: demoBalance };
+    state.role = "owner";
+    state.chainLabel = "demo-chain";
+    state.selectedId = null;
+    state.qty = 1;
+    el("subtitle").textContent = "Modo demo · pagos simulados en memoria";
+    el("netChip").className = "chip";
+    el("netChip").textContent = "demo-chain";
+    el("walletBtn").textContent = "Conectar wallet";
+    el("walletLabel").textContent = "Saldo demo";
+    el("topUpBtn").hidden = false;
+    render();
+  }
+
+  function demoBuy() {
+    const product = selectedProduct();
+    if (!product || !product.active || product.stock < state.qty) {
+      toast("Ese producto no está disponible en esa cantidad", "error");
+      return;
+    }
+    if (state.paused) {
+      toast("La máquina está en pausa", "error");
+      return;
+    }
+    const amount = total();
+    if (demoBalance < amount) {
+      toast("Saldo demo insuficiente: usa el botón +50", "error");
+      return;
+    }
+
+    state.busy = true;
+    demoBalance -= amount;
+    state.wallet.balance = demoBalance;
+    product.stock -= state.qty;
+
+    const order = {
+      id: ++demoOrderId,
+      productId: product.id,
+      productName: product.name,
+      emoji: product.emoji,
+      qty: state.qty,
+      amount,
+      state: "pending",
+      deadline: BigInt(Math.floor(Date.now() / 1000) + DEMO_WINDOW),
+      hash: fakeHash(),
+      at: new Date(),
+    };
+    state.orders.unshift(order);
+    render();
+    dropItem(product.emoji);
+
+    setTimeout(() => demoDispense(order.id), 1500);
+  }
+
+  function demoDispense(orderId) {
+    const order = state.orders.find((item) => item.id === orderId);
+    if (!order || order.state !== "pending") return;
+    order.state = "dispensed";
+    state.revenue += order.amount;
+    state.busy = false;
+    toast(`Entregado: ${order.productName}`, "ok");
+    render();
+  }
+
+  function demoCancel(orderId) {
+    const order = state.orders.find((item) => item.id === orderId);
+    if (!order || order.state !== "pending") return;
+    const product = state.products.find((item) => item.id === order.productId);
+    order.state = "refunded";
+    if (product) product.stock += order.qty;
+    demoBalance += order.amount;
+    state.wallet.balance = demoBalance;
+    state.busy = false;
+    toast(`Reembolsado: ${order.productName}`, "ok");
+    render();
+  }
+
+  function dropItem(emoji) {
+    const tray = el("tray");
+    const node = document.createElement("span");
+    node.className = "drop";
+    node.textContent = emoji;
+    tray.appendChild(node);
+    setTimeout(() => node.remove(), 2600);
+  }
+
+  /* ---------------- cadena ---------------- */
+
+  async function connectChain() {
+    if (!window.ethereum) {
+      toast("No hay wallet en este navegador. Sigues en modo demo.", "error");
+      return;
+    }
+    if (!window.ethers) {
+      toast("No se pudo cargar ethers.js (revisa tu conexión)", "error");
+      return;
+    }
+    if (!state.config.machine) {
+      openDrawer();
+      toast("Configura la dirección del contrato", "error");
+      return;
+    }
+
+    try {
+      const provider = new window.ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = await provider.getSigner();
+      const network = await provider.getNetwork();
+      const address = await signer.getAddress();
+
+      const machine = new window.ethers.Contract(state.config.machine, MACHINE_ABI, provider);
+      const [owner, dispenser, tokenAddress] = await Promise.all([
+        machine.owner(),
+        machine.dispenser(),
+        machine.token(),
+      ]);
+
+      const native = tokenAddress === window.ethers.ZeroAddress;
+      let token = null;
+      let decimals = 18;
+      let symbol = "ETH";
+
+      if (!native) {
+        token = new window.ethers.Contract(tokenAddress, TOKEN_ABI, provider);
+        decimals = Number(await token.decimals());
+        symbol = await token.symbol();
+      }
+
+      state.mode = "live";
+      state.chain = provider;
+      state.signer = signer;
+      state.native = native;
+      state.token = token;
+      state.tokenAddress = native ? null : tokenAddress;
+      state.machine = machine;
+      state.decimals = decimals;
+      state.symbol = symbol;
+      state.wallet.address = address;
+      state.chainLabel = `chain ${network.chainId}`;
+      state.ownerAddress = owner;
+      state.dispenserAddress = dispenser;
+      state.role = address.toLowerCase() === owner.toLowerCase()
+        ? "owner"
+        : address.toLowerCase() === dispenser.toLowerCase()
+          ? "dispenser"
+          : "guest";
+
+      el("subtitle").textContent = `Conectado · ${shortAddress(address)}`;
+      el("netChip").className = "chip live";
+      el("netChip").textContent = state.chainLabel;
+      el("walletBtn").textContent = shortAddress(address);
+      el("walletLabel").textContent = "Tu saldo";
+      el("topUpBtn").hidden = true;
+      el("modeChip").textContent = state.role === "guest" ? "live" : state.role;
+
+      await refreshLive();
+      toast("Wallet conectada", "ok");
+    } catch (error) {
+      toast(error?.shortMessage ?? error?.message ?? "No se pudo conectar", "error");
+    }
+  }
+
+  async function refreshLive() {
+    const machine = state.machine;
+    if (!machine) return;
+
+    const [catalog, paused, revenue, count, maxQuantity, windowSeconds, owner, dispenser, pendingOwner] = await Promise.all([
+      machine.catalog(),
+      machine.paused(),
+      machine.withdrawable(state.wallet.address),
+      machine.orderCount(),
+      machine.maxQuantity(),
+      machine.dispenseWindow(),
+      machine.owner(),
+      machine.dispenser(),
+      machine.pendingOwner(),
+    ]);
+
+    const balance = state.native
+      ? await state.chain.getBalance(state.wallet.address)
+      : await state.token.balanceOf(state.wallet.address);
+
+    state.products = catalog.map((item, index) => ({
+      id: index + 1,
+      name: item.name,
+      price: BigInt(item.price),
+      stock: Number(item.stock),
+      active: item.active,
+      emoji: iconFor(item.name),
+    }));
+    state.paused = paused;
+    state.revenue = BigInt(revenue);
+    state.maxQuantity = Number(maxQuantity);
+    state.windowSeconds = Number(windowSeconds);
+    state.ownerAddress = owner;
+    state.dispenserAddress = dispenser;
+    state.pendingOwnerAddress = pendingOwner === window.ethers.ZeroAddress ? null : pendingOwner;
+    state.wallet.balance = BigInt(balance);
+
+    const ids = [];
+    for (let id = count; id > 0n && ids.length < 8; id -= 1n) ids.push(id);
+    const raw = await Promise.all(ids.map((id) => machine.orders(id)));
+
+    state.orders = raw.map((order, index) => {
+      const product = state.products[Number(order.productId) - 1];
+      const orderId = Number(ids[index]);
+      return {
+        id: orderId,
+        productId: Number(order.productId),
+        productName: product?.name ?? `Producto #${order.productId}`,
+        emoji: product?.emoji ?? "🥫",
+        qty: Number(order.quantity),
+        amount: BigInt(order.amount),
+        state: ["pending", "dispensed", "refunded"][Number(order.state)] ?? "pending",
+        deadline: BigInt(order.deadline),
+        hash: null,
+        at: null,
+      };
+    });
+
+    if (state.selectedId && !state.products.some((product) => product.id === state.selectedId)) {
+      state.selectedId = null;
+    }
+    render();
+  }
+
+  async function liveBuy() {
+    const product = selectedProduct();
+    if (!product) return;
+    if (!product.active || product.stock < state.qty) {
+      toast("Producto no disponible", "error");
+      return;
+    }
+
+    const amount = total();
+    state.busy = true;
+    render();
+
+    try {
+      const signer = state.signer;
+      const machine = new window.ethers.Contract(state.config.machine, MACHINE_ABI, signer);
+
+      let tx;
+      if (state.native) {
+        toast("Enviando el pago en ETH…");
+        tx = await machine.buy(product.id, state.qty, { value: amount });
+      } else {
+        const token = new window.ethers.Contract(state.tokenAddress, TOKEN_ABI, signer);
+        const allowance = await token.allowance(state.wallet.address, state.config.machine);
+        if (BigInt(allowance) < amount) {
+          toast("Aprobando el token…");
+          await (await token.approve(state.config.machine, window.ethers.MaxUint256)).wait();
+        }
+        toast("Enviando el pago al contrato…");
+        tx = await machine.buy(product.id, state.qty);
+      }
+
+      const receipt = await tx.wait();
+
+      let orderId = null;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = machine.interface.parseLog(log);
+          if (parsed?.name === "OrderCreated") orderId = Number(parsed.args.orderId);
+        } catch { /* logs de otros contratos */ }
+      }
+
+      if (orderId !== null) pollOrder(orderId);
+
+      toast("Pago en escrow. Esperando la entrega de la máquina…", "ok");
+      await refreshLive();
+    } catch (error) {
+      toast(error?.shortMessage ?? error?.message ?? "La compra falló", "error");
+    } finally {
+      state.busy = false;
+      render();
+    }
+  }
+
+  function pollOrder(orderId) {
+    let attempts = 0;
+    const timer = setInterval(async () => {
+      attempts += 1;
+      try {
+        const order = await state.machine.orders(orderId);
+        if (Number(order.state) !== 0 || attempts > 30) {
+          clearInterval(timer);
+          await refreshLive();
+          return;
+        }
+      } catch {
+        clearInterval(timer);
+        return;
+      }
+      if (attempts > 30) clearInterval(timer);
+    }, 4000);
+  }
+
+  async function sendLive(action, successMessage) {
+    try {
+      const contract = new window.ethers.Contract(state.config.machine, MACHINE_ABI, state.signer);
+      const tx = await action(contract);
+      await tx.wait();
+      await refreshLive();
+      if (successMessage) toast(successMessage, "ok");
+    } catch (error) {
+      toast(error?.shortMessage ?? error?.message ?? "La transacción falló", "error");
+    }
+  }
+
+  /* ---------------- acciones ---------------- */
+
+  function selectProduct(id) {
+    const product = state.products.find((item) => item.id === id);
+    if (!product || !product.active || product.stock === 0) return;
+    state.selectedId = id;
+    state.qty = 1;
+    render();
+  }
+
+  function changeQty(delta) {
+    const product = selectedProduct();
+    if (!product) return;
+    const next = Math.min(Math.max(state.qty + delta, 1), Math.min(product.stock, state.maxQuantity));
+    state.qty = next;
+    render();
+  }
+
+  function pay() {
+    if (state.busy) return;
+    if (state.mode === "demo") demoBuy();
+    else liveBuy();
+  }
+
+  async function togglePause() {
+    const next = !state.paused;
+    if (state.mode === "demo") {
+      state.paused = next;
+      render();
+      toast(next ? "Ventas pausadas" : "Ventas reactivadas");
+      return;
+    }
+    await sendLive((contract) => contract.setPaused(next), next ? "Ventas pausadas" : "Ventas reactivadas");
+  }
+
+  async function withdrawRevenue() {
+    if (state.mode === "demo") {
+      if (state.revenue === 0n) {
+        toast("No hay recaudación para retirar", "error");
+        return;
+      }
+      state.revenue = 0n;
+      render();
+      toast("Recaudación retirada (simulado)", "ok");
+      return;
+    }
+    const target = el("cfgWithdrawTo").value.trim() || state.wallet.address;
+    if (!window.ethers.isAddress(target)) {
+      toast("Dirección de retiro inválida", "error");
+      return;
+    }
+    await sendLive((contract) => contract.withdraw(target), "Recaudación retirada");
+  }
+
+  async function runLiveActions(actions, successMessage) {
+    if (!actions.length) {
+      toast("No hay cambios que guardar");
+      return;
+    }
+    state.busy = true;
+    try {
+      const contract = new window.ethers.Contract(state.config.machine, MACHINE_ABI, state.signer);
+      for (const action of actions) {
+        const tx = await action(contract);
+        await tx.wait();
+      }
+      state.adminEditingId = null;
+      state.adminCreating = false;
+      await refreshLive();
+      if (successMessage) toast(successMessage, "ok");
+    } catch (error) {
+      toast(error?.shortMessage ?? error?.message ?? "La transacción falló", "error");
+    } finally {
+      state.busy = false;
+      render();
+    }
+  }
+
+  function openProductEditor(productId) {
+    state.adminEditingId = productId;
+    state.adminCreating = false;
+    renderAdmin();
+  }
+
+  function openNewProduct() {
+    state.adminEditingId = null;
+    state.adminCreating = true;
+    renderAdmin();
+  }
+
+  function closeEditor() {
+    state.adminEditingId = null;
+    state.adminCreating = false;
+    renderAdmin();
+  }
+
+  async function saveProduct() {
+    const product = state.products.find((item) => item.id === state.adminEditingId);
+    if (!product) return;
+
+    const name = el("editName").value.trim();
+    const active = el("editActive").checked;
+    const stock = Number(el("editStock").value);
+    let price;
+
+    try {
+      price = parseUnits(el("editPrice").value.trim());
+    } catch {
+      toast("Precio inválido", "error");
+      return;
+    }
+
+    if (!name) { toast("El nombre no puede estar vacío", "error"); return; }
+    if (name.length > 64) { toast("El nombre no puede pasar de 64 caracteres", "error"); return; }
+    if (price === 0n) { toast("El precio debe ser mayor que cero", "error"); return; }
+    if (!Number.isInteger(stock) || stock < 0) { toast("Stock inválido", "error"); return; }
+
+    if (state.mode === "demo") {
+      Object.assign(product, { name, price, stock, active, emoji: iconFor(name) });
+      demoStockBaseline.set(product.id, Math.max(stock, 1));
+      state.adminEditingId = null;
+      render();
+      toast("Producto actualizado", "ok");
+      return;
+    }
+
+    const actions = [];
+    if (name !== product.name) actions.push((contract) => contract.setProductName(product.id, name));
+    if (price !== product.price || active !== product.active) {
+      actions.push((contract) => contract.configureProduct(product.id, price, active));
+    }
+    if (stock !== product.stock) actions.push((contract) => contract.setStock(product.id, stock));
+
+    await runLiveActions(actions, "Producto actualizado");
+  }
+
+  async function createProduct() {
+    const name = el("newName").value.trim();
+    const stock = Number(el("newStock").value);
+    let price;
+
+    try {
+      price = parseUnits(el("newPrice").value.trim());
+    } catch {
+      toast("Precio inválido", "error");
+      return;
+    }
+
+    if (!name) { toast("Ponle un nombre al producto", "error"); return; }
+    if (name.length > 64) { toast("El nombre no puede pasar de 64 caracteres", "error"); return; }
+    if (price === 0n) { toast("El precio debe ser mayor que cero", "error"); return; }
+    if (!Number.isInteger(stock) || stock < 0) { toast("Stock inválido", "error"); return; }
+
+    if (state.mode === "demo") {
+      const id = state.products.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+      state.products.push({ id, name, price, stock, active: true, emoji: iconFor(name) });
+      demoStockBaseline.set(id, Math.max(stock, 1));
+      state.adminCreating = false;
+      render();
+      toast("Producto añadido al catálogo", "ok");
+      return;
+    }
+
+    await runLiveActions([(contract) => contract.addProduct(name, price, stock)], "Producto añadido al catálogo");
+  }
+
+  async function saveWindow() {
+    const minutes = Number(el("cfgWindow").value);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 10080) {
+      toast("La ventana debe estar entre 1 y 10080 minutos", "error");
+      return;
+    }
+    const seconds = Math.round(minutes * 60);
+    if (state.mode === "demo") {
+      state.windowSeconds = seconds;
+      render();
+      toast("Ventana de entrega actualizada", "ok");
+      return;
+    }
+    await sendLive((contract) => contract.setDispenseWindow(seconds), "Ventana de entrega actualizada");
+  }
+
+  async function saveMaxQuantity() {
+    const value = Number(el("cfgMaxQty").value);
+    if (!Number.isInteger(value) || value < 1 || value > 50) {
+      toast("El máximo debe estar entre 1 y 50 unidades", "error");
+      return;
+    }
+    if (state.mode === "demo") {
+      state.maxQuantity = value;
+      state.qty = Math.min(state.qty, value);
+      render();
+      toast("Máximo por compra actualizado", "ok");
+      return;
+    }
+    await sendLive((contract) => contract.setMaxQuantity(value), "Máximo por compra actualizado");
+  }
+
+  async function saveDispenser() {
+    if (state.mode === "demo") {
+      toast("Conecta la wallet para cambiar el dispensador", "error");
+      return;
+    }
+    const address = el("cfgDispenser").value.trim();
+    if (!window.ethers.isAddress(address)) {
+      toast("Dirección inválida", "error");
+      return;
+    }
+    await sendLive((contract) => contract.setDispenser(address), "Dispensador actualizado");
+  }
+
+  async function startOwnershipTransfer() {
+    if (state.mode === "demo") {
+      toast("Conecta la wallet para transferir la propiedad", "error");
+      return;
+    }
+    const address = el("cfgNewOwner").value.trim();
+    if (!window.ethers.isAddress(address)) {
+      toast("Dirección inválida", "error");
+      return;
+    }
+    await sendLive((contract) => contract.transferOwnership(address), "Transferencia iniciada");
+  }
+
+  async function acceptOwnership() {
+    await sendLive((contract) => contract.acceptOwnership(), "Propiedad aceptada");
+  }
+
+  async function confirmOrder(orderId) {
+    if (state.mode === "demo") {
+      demoDispense(orderId);
+      return;
+    }
+    await sendLive((contract) => contract.confirmDispense(orderId), "Entrega confirmada");
+  }
+
+  async function cancelOrder(orderId) {
+    if (state.mode === "demo") {
+      demoCancel(orderId);
+      return;
+    }
+    await sendLive((contract) => contract.cancelOrder(orderId), "Orden reembolsada");
+  }
+
+  function topUp() {
+    demoBalance += parseUnits("0.05");
+    state.wallet.balance = demoBalance;
+    render();
+    toast("+0.05 ETH de prueba", "ok");
+  }
+
+  /* ---------------- render ---------------- */
+
+  function render() {
+    renderShelf();
+    renderPanel();
+    renderLedger();
+    renderAdmin();
+  }
+
+  function renderShelf() {
+    const shelf = el("shelf");
+    shelf.innerHTML = state.products.map((product) => {
+      const baseline = demoStockBaseline.get(product.id) ?? product.stock;
+      const ratio = Math.max(0, Math.min(1, product.stock / (baseline || 1)));
+      const width = product.stock === 0 ? 0 : Math.max(6, ratio * 100);
+      const tone = product.stock === 0 ? "empty" : product.stock <= 2 ? "low" : "";
+      const disabled = !product.active || product.stock === 0;
+      return `
+        <button class="product ${disabled ? "sold-out" : ""}" data-id="${product.id}"
+                aria-pressed="${state.selectedId === product.id}" ${disabled ? "disabled" : ""}>
+          <span class="emoji" aria-hidden="true">${product.emoji}</span>
+          <span class="pname">${esc(product.name)}</span>
+          <span class="pmeta">
+            <span class="price">${formatUnits(product.price)}</span>
+            <span class="stock">${product.stock} uds</span>
+          </span>
+          <span class="bar-stock ${tone}"><i style="width:${width}%"></i></span>
+          ${product.stock === 0 ? '<span class="sold-flag">AGOTADO</span>' : ""}
+        </button>`;
+    }).join("");
+
+    shelf.querySelectorAll(".product").forEach((node) => {
+      node.addEventListener("click", () => selectProduct(Number(node.dataset.id)));
+    });
+
+    const totalStock = state.products.reduce((sum, product) => sum + product.stock, 0);
+    el("shelfTitle").textContent = `${state.products.length} productos · ${totalStock} unidades`;
+    el("pauseChip").hidden = !state.paused;
+  }
+
+  function renderPanel() {
+    const product = selectedProduct();
+    const totalAmount = total();
+
+    el("pickedEmoji").textContent = product ? product.emoji : "🛒";
+    el("pickedName").textContent = product ? product.name : "Elige un producto";
+    el("pickedPrice").textContent = product ? `${money(product.price)} por unidad` : "—";
+    el("qtyOut").textContent = String(state.qty);
+    el("totalOut").innerHTML = `${formatUnits(totalAmount)}<small>${esc(state.symbol)}</small>`;
+
+    el("minus").disabled = !product || state.qty <= 1;
+    el("plus").disabled = !product || state.qty >= Math.min(product.stock, state.maxQuantity);
+
+    const payBtn = el("payBtn");
+    payBtn.disabled = !product || state.busy || state.paused;
+    payBtn.textContent = !product
+      ? "Elige un producto"
+      : state.busy
+        ? "Procesando…"
+        : `Pagar ${formatUnits(totalAmount)} ${state.symbol}`;
+
+    el("modeChip").textContent = state.mode === "demo" ? "demo" : state.role === "guest" ? "live" : state.role;
+    el("modeChip").className = `chip small ${state.mode === "live" ? "live" : ""}`;
+    el("walletOut").textContent = formatUnits(state.wallet.balance);
+    el("walletLabel").textContent = state.mode === "demo" ? "Saldo demo" : "Tu saldo";
+  }
+
+  function renderLedger() {
+    const list = el("ledgerList");
+    const orders = state.orders.slice(0, 6);
+
+    if (!orders.length) {
+      list.innerHTML = '<li class="empty">Todavía no hay ventas. Elige algo de la vitrina y paga con la wallet.</li>';
+      return;
+    }
+
+    list.innerHTML = orders.map((order) => {
+      const when = order.at
+        ? order.at.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        : "";
+      return `
+        <li class="entry">
+          <span class="e-emoji" aria-hidden="true">${order.emoji}</span>
+          <span class="e-name">${esc(order.productName)}
+            <small>#${order.id} · ${order.qty} ud · ${when}${order.hash ? ` · ${order.hash.slice(0, 10)}…` : ""}</small>
+          </span>
+          <span class="e-amount">${formatUnits(order.amount)}</span>
+          <span class="state ${order.state}">${order.state === "pending" ? "pendiente" : order.state === "dispensed" ? "entregado" : "reembolsado"}</span>
+        </li>`;
+    }).join("");
+  }
+
+  function renderAdmin() {
+    el("admMode").textContent = state.native ? "ETH" : state.symbol;
+    el("admNet").textContent = state.chainLabel;
+    el("admOwner").textContent = state.mode === "demo" ? "tú (demo)" : shortAddress(state.ownerAddress);
+    el("admDispenser").textContent = state.mode === "demo" ? "simulado" : shortAddress(state.dispenserAddress);
+    el("admRevenue").textContent = money(state.revenue);
+    el("admWindow").textContent = `${Math.round(state.windowSeconds / 60)} min`;
+    el("admMaxQty").textContent = `${state.maxQuantity} uds`;
+    el("admPaused").textContent = state.paused ? "en pausa" : "activas";
+    el("pauseBtn").textContent = state.paused ? "Reactivar ventas" : "Pausar ventas";
+
+    if (document.activeElement !== el("cfgWindow")) el("cfgWindow").value = Math.round(state.windowSeconds / 60);
+    if (document.activeElement !== el("cfgMaxQty")) el("cfgMaxQty").value = state.maxQuantity;
+    if (document.activeElement !== el("cfgDispenser") && state.dispenserAddress) {
+      el("cfgDispenser").value = state.dispenserAddress;
+    }
+
+    el("admPendingOwner").textContent = state.pendingOwnerAddress
+      ? `Transferencia pendiente hacia ${shortAddress(state.pendingOwnerAddress)}`
+      : "Sin transferencias en curso.";
+    el("acceptOwner").hidden = !state.pendingOwnerAddress
+      || String(state.wallet.address).toLowerCase() !== String(state.pendingOwnerAddress).toLowerCase();
+
+    renderAdminOrders();
+    renderAdminCatalog();
+  }
+
+  function renderAdminOrders() {
+    const pending = state.orders.filter((order) => order.state === "pending");
+    el("admPending").innerHTML = pending.length
+      ? pending.map((order) => `
+          <div class="pending-row">
+            <div>${esc(order.productName)}<small>#${order.id} · ${formatUnits(order.amount)} ${esc(state.symbol)}</small></div>
+            <div>
+              <button class="btn tiny" data-confirm="${order.id}">Entregar</button>
+              <button class="btn tiny" data-cancel="${order.id}">Reembolsar</button>
+            </div>
+          </div>`).join("")
+      : '<p class="empty">Sin órdenes pendientes.</p>';
+
+    el("admPending").querySelectorAll("[data-confirm]").forEach((node) => {
+      node.addEventListener("click", () => confirmOrder(Number(node.dataset.confirm)));
+    });
+    el("admPending").querySelectorAll("[data-cancel]").forEach((node) => {
+      node.addEventListener("click", () => cancelOrder(Number(node.dataset.cancel)));
+    });
+  }
+
+  function renderAdminCatalog() {
+    const container = el("admCatalog");
+
+    if (state.adminCreating) {
+      container.innerHTML = `
+        <div class="editor">
+          <div class="field">
+            <label for="newName">Nombre</label>
+            <input id="newName" maxlength="64" placeholder="Ej. Té frío 500 ml" />
+          </div>
+          <div class="input-row">
+            <div class="field">
+              <label for="newPrice">Precio (${esc(state.symbol)})</label>
+              <input id="newPrice" inputmode="decimal" placeholder="0.0015" />
+            </div>
+            <div class="field">
+              <label for="newStock">Stock</label>
+              <input id="newStock" type="number" min="0" step="1" value="6" />
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn tiny" id="createProductBtn">Crear producto</button>
+            <button class="btn tiny" id="cancelCreateBtn">Cancelar</button>
+          </div>
+        </div>`;
+      el("createProductBtn").addEventListener("click", createProduct);
+      el("cancelCreateBtn").addEventListener("click", closeEditor);
+      return;
+    }
+
+    const editing = state.products.find((product) => product.id === state.adminEditingId);
+
+    if (editing) {
+      container.innerHTML = `
+        <div class="editor">
+          <button class="link" id="backToCatalog">← Volver al catálogo</button>
+          <div class="field">
+            <label for="editName">Nombre</label>
+            <input id="editName" maxlength="64" value="${esc(editing.name)}" />
+          </div>
+          <div class="input-row">
+            <div class="field">
+              <label for="editPrice">Precio (${esc(state.symbol)})</label>
+              <input id="editPrice" inputmode="decimal" value="${formatUnits(editing.price)}" />
+            </div>
+            <div class="field">
+              <label for="editStock">Stock</label>
+              <input id="editStock" type="number" min="0" step="1" value="${editing.stock}" />
+            </div>
+          </div>
+          <label class="switch"><input type="checkbox" id="editActive" ${editing.active ? "checked" : ""} /> Producto activo (visible y vendible)</label>
+          <div class="btn-row">
+            <button class="btn tiny" id="saveProductBtn">Guardar cambios</button>
+            <button class="btn tiny" id="cancelEditBtn">Cancelar</button>
+          </div>
+        </div>`;
+      el("backToCatalog").addEventListener("click", closeEditor);
+      el("saveProductBtn").addEventListener("click", saveProduct);
+      el("cancelEditBtn").addEventListener("click", closeEditor);
+      return;
+    }
+
+    container.innerHTML = state.products.map((product) => `
+      <button class="cat-row" data-edit="${product.id}">
+        <span class="cat-name">${esc(product.name)}
+          <small>${formatUnits(product.price)} ${esc(state.symbol)} · ${product.stock} uds</small>
+        </span>
+        <span class="cat-state ${product.active ? "" : "off"}">${product.active ? "activo" : "inactivo"}</span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>`).join("") || '<p class="empty">Sin productos. Crea el primero.</p>';
+
+    container.querySelectorAll("[data-edit]").forEach((node) => {
+      node.addEventListener("click", () => openProductEditor(Number(node.dataset.edit)));
+    });
+  }
+
+  /* ---------------- navegación ---------------- */
+
+  function openDrawer() {
+    el("drawer").classList.add("open");
+    el("drawer").removeAttribute("inert");
+    el("scrim").classList.add("open");
+  }
+
+  function closeDrawer() {
+    el("drawer").classList.remove("open");
+    el("drawer").setAttribute("inert", "");
+    el("scrim").classList.remove("open");
+  }
+
+  function loadConfig() {
+    try {
+      const stored = JSON.parse(localStorage.getItem("vending.config") ?? "{}");
+      if (stored.machine) state.config.machine = stored.machine;
+    } catch { /* configuración corrupta: se ignora */ }
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("machine")) state.config.machine = params.get("machine");
+
+    el("cfgMachine").value = state.config.machine;
+  }
+
+  function saveConfig() {
+    state.config.machine = el("cfgMachine").value.trim();
+    localStorage.setItem("vending.config", JSON.stringify(state.config));
+    toast("Dirección guardada", "ok");
+  }
+
+  /* ---------------- arranque ---------------- */
+
+  function bind() {
+    el("minus").addEventListener("click", () => changeQty(-1));
+    el("plus").addEventListener("click", () => changeQty(1));
+    el("payBtn").addEventListener("click", pay);
+    el("topUpBtn").addEventListener("click", topUp);
+    el("walletBtn").addEventListener("click", connectChain);
+    el("adminBtn").addEventListener("click", openDrawer);
+    el("closeDrawer").addEventListener("click", closeDrawer);
+    el("scrim").addEventListener("click", closeDrawer);
+    el("pauseBtn").addEventListener("click", togglePause);
+    el("withdrawBtn").addEventListener("click", withdrawRevenue);
+    el("newProductBtn").addEventListener("click", openNewProduct);
+    el("saveWindow").addEventListener("click", saveWindow);
+    el("saveMaxQty").addEventListener("click", saveMaxQuantity);
+    el("saveDispenser").addEventListener("click", saveDispenser);
+    el("transferOwner").addEventListener("click", startOwnershipTransfer);
+    el("acceptOwner").addEventListener("click", acceptOwnership);
+    el("saveCfg").addEventListener("click", saveConfig);
+    el("connectBtn").addEventListener("click", connectChain);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeDrawer();
+    });
+  }
+
+  loadConfig();
+  bind();
+  seedDemo();
+})();
+</script>
+</body>
+</html>
