@@ -168,6 +168,22 @@ En modo demo todo se aplica en memoria para que puedas probarlo sin wallet. Con 
 cambio es una transacción firmada por el dueño; la interfaz solo envía las llamadas de los campos que
 realmente cambiaste.
 
+## Comprobante de pago
+
+Cada venta emite un comprobante que se abre solo cuando la máquina confirma la entrega:
+
+- Orden, fecha, comprador, producto, cantidad, precio unitario y total pagado.
+- Hash de la transacción y **QR** al explorador de la red, para verificarlo desde el móvil.
+- Botón **Verificar**: relee la orden del contrato y comprueba que el comprador y el importe coinciden.
+- **Descargar PNG** para guardarlo como archivo e **Imprimir** (sirve para guardar como PDF).
+- En el panel de administración queda la lista de los últimos comprobantes emitidos.
+
+Se guardan en el navegador y se pueden reabrir desde el libro de ventas o desde el panel. En modo demo
+llevan marca de agua y no tienen validez on-chain: el hash se sustituye por “sin transacción”.
+
+El QR se genera con `web/vendor/qrcode.js` (qrcode-generator, licencia MIT), incluido en el repo para que
+funcione sin conexión.
+
 ## Operación diaria
 
 | Tarea | Cómo |
